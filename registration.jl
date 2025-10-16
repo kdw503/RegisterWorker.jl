@@ -29,15 +29,17 @@ tax = ImageAxes.timeaxis(img)
 nframes = length(tax)
 nhalf = nframes ÷ 2
 fixed = img[tax(nhalf+1)]
-maxshift = (3*shift_amplitude, 3*shift_amplitude)
+mxshift = (3*shift_amplitude, 3*shift_amplitude)
 nodes = map(d->range(1, stop=size(fixed,d), length=gridsize[d]), (1,2))
 pp = PreprocessSNF(0.1, [2,2], [10,10])
 
 # fixed λ (with saving to file)
 λ = 0.001
 fn_pp = joinpath(tempdir(), "apertured_pp.jld")
-algorithms = Apertures[Apertures(sfixed, nodes, maxshift, λ, pp; pid=p) for p in aperturedprocs] # sfixed is shared not duplicated
-algorithms2 = Apertures[Apertures(pp(fixed), nodes, maxshift, λ, pp; pid=p) for p in aperturedprocs] # fixed is duplicated
+sfixed = SharedArray{Float64}(size(fixed))
+sfixed .= pp(fixed)
+algorithms = Apertures[Apertures(sfixed, nodes, mxshift, λ, pp; pid=p) for p in aperturedprocs] # sfixed is shared not duplicated
+algorithms2 = Apertures[Apertures(pp(fixed), nodes, mxshift, λ, pp; pid=p) for p in aperturedprocs] # fixed is duplicated
 mm_package_loader(algorithms) # load mismatch packages on worker processes (RegisterMismatch or RegisterMismatchCuda)
 mons = monitor(algorithms,
                (),
@@ -69,7 +71,7 @@ end
 
 # auto λrange (only one frame with no saving to file)
 λrange = (1e-6,10)
-alg = Apertures(pp(fixed), nodes, maxshift, λrange, pp) # no distributed computing
+alg = Apertures(pp(fixed), nodes, mxshift, λrange, pp) # no distributed computing
 mm_package_loader(alg)
 mon = monitor(alg, (), Dict(:λs=>0, :datapenalty=>0, :λ=>0, :u=>0, :warped0 => Array{Float64}(undef, size(fixed))))
 mon = driver(alg, img[tax(1)], mon)
@@ -104,7 +106,7 @@ pp = PreprocessSNF(0.1, [2,2], [10,10])
 
 λ = 0.001
 fn_pp = joinpath(tempdir(), "apertured_pp_cuda.jld")
-sfixed = SharedArray{Float64}(size(fixed))
+sfixed = SharedArray{Float32}(size(fixed))
 sfixed .= pp(fixed)
 algorithms = Apertures[Apertures(sfixed, nodes, mxshift, λ, pp; pid=p, dev=0) for p in aperturedprocs] # sfixed is shared not duplicated
 #algorithms[2].dev = 0
@@ -136,6 +138,47 @@ jldopen(fn_pp) do f
     end
 end
 @test nfailures <= 2
+
+#=============== memory usage =====================#
+Sys.total_memory() / 1e9 # 16.9362944   # 약 16.9 GB system RAM
+Sys.free_memory() / 1e9 # 8.2036736    # 약 8.2 GB 사용 가능
+
+memalloc = @allocated driver(fn_pp, algorithms, img, mons)
+memalloc/1e6 # 30.197424 MB
+
+@allocated ppfixed = pp(fixed) # 6.3MB (including function pp running)
+ppfixedmem = Base.summarysize(ppfixed) # (only count array object(pointer and dimension) in julia heap + julia heap에 있는 포인터 참조 데이터까지 포함)
+ppfixedmem/1e3 # 679.016KB
+sizeof(eltype(ppfixed)) * length(ppfixed)/1e3 # 678.976KB 
+
+sfixed412 = SharedArray{eltype(ppfixed)}(size(ppfixed)) # datasize = 678.976KB 
+sfixed412mem = Base.summarysize(sfixed412) # (only count sharedarray object(pointer and dimension) in julia heap but not count data in the shared memory area)
+sfixed412mem/1e3 # 679.629KB (metadata size is big)
+sfixed1000 = SharedArray{eltype(ppfixed)}((1000,1000)) # datasize = 4MB
+sfixed1000mem = Base.summarysize(sfixed1000) # (only count sharedarray object(pointer and dimension + 내부 Array wrapper()) in julia heap but not count data in the shared memory area)
+sfixed1000mem/1e3 # 4000.653KB (metadata size is big)
+
+mem = @allocated algorithms = Apertures[Apertures(pp(fixed), nodes, mxshift, λ, pp; pid=p) for p in aperturedprocs] # sfixed is shared not duplicated
+mem/1e6 # 5.13KB (only count julia heap)
+Base.summarysize(algorithms)/1e3 # 1360.128KB (pp(fixed) are duplicated and also duplicated in each worker)
+
+mem = @allocated algorithms = Apertures[Apertures(ppfixed, nodes, mxshift, λ, pp; pid=p) for p in aperturedprocs] # sfixed is shared not duplicated
+mem/1e6 # 5.13KB (only count julia heap)
+Base.summarysize(algorithms)/1e3 # 681.112KB (ppfixed are shared but duplicated in each worker)
+
+sharedmem = @allocated algorithms = Apertures[Apertures(sfixed412, nodes, mxshift, λ, pp; pid=p) for p in aperturedprocs] # sfixed is shared not duplicate
+sharedmem/1e3 # 5.13KB (only count julia heap)
+Base.summarysize(algorithms)/1e3 # 681.725KB (sfixed412 are shared and also shared in each worker)
+
+mm_package_loader(algorithms) # load mismatch packages on worker processes (RegisterMismatch or RegisterMismatchCuda)
+mons = monitor(algorithms,
+               (),
+               Dict(:u => Array{SVector{2,Float64}}(undef, gridsize),
+                    :warped => Array{Float64}(undef, size(fixed)),
+                    :warped0 => Array{Float64}(undef, size(fixed)),
+                    :mismatch => 0.0))
+driver(fn_pp, algorithms, img, mons)
+
 
 #================================#
 using Distributed
@@ -285,3 +328,7 @@ pmap(pool, 1:2) do _
     println(myid())
     return nothing
 end
+
+#============================================#
+# \\storage1.ris.wustl.edu\holy\Active\tom\vno_recordings\081425\highK_furine_ringers.imagine
+kim503@compute1-client-1.ris.wustl.edu:/storage1/fs1/holy/Active/tom/vno_recordings/081425/highK_furine_ringers.imagine
