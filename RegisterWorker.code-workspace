@@ -1,28 +1,14 @@
 {
 	"folders": [
 		{
-			"name": "RegisterWorkerApertures",
-			"path": "../../../../.julia/dev/RegisterWorkerApertures"
-		},
-		{
-			"name": "RegisterWorkerAperturesMismatch",
-			"path": "../../../../.julia/dev/RegisterWorkerAperturesMismatch"
-		},
-		{
-			"name": "RegisterWorkerShell",
-			"path": "../../../../.julia/dev/RegisterWorkerShell"
-		},
-		{
-			"name": "RegisterDriver",
-			"path": "../../../../.julia/dev/RegisterDriver"
-		},
-		{
-			"name": "RegisterWorker",
 			"path": "."
 		},
 		{
-			"name": "RegisterMismatch",
-			"path": "../../../../.julia/dev/RegisterMismatch"
+			"path": "../../../../bin"
+		},
+		{
+			"path": "../../../.julia/dev/RegisterDriver"
 		}
-	]
+	],
+	"settings": {}
 }

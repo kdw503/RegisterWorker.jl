@@ -14,6 +14,30 @@ elseif Sys.isunix()
     end
 end
 cd(workpath); Pkg.activate(".")
+
+#============================================#
+# storage1.ris.wustl.edu\holy\Active\tom\vno_recordings\081425\highK_furine_ringers.imagine
+# kim503@compute1-client-1.ris.wustl.edu:/storage1/fs1/holy/Active/tom/vno_recordings/081425/highK_furine_ringers.imagine
+using AxisArrays, NRRD, FileIO, ImagineFormat, FixedPointNumbers
+
+tomdir = "/storage1/fs1/holy/Active/tom/vno_recordings/081425"
+mydir = "/storage1/fs1/holy/Active/daewoo/work/julia/RegisterWorker"
+img = load(raw"/storage1/fs1/holy/Active/tom/vno_recordings/081425/highK_furine_ringers.imagine")
+
+sizex, sizel, sizez, sizet = size(img.data)
+axx = AxisArrays.Axis{:x}(1:sizex)
+axl = AxisArrays.Axis{:l}(1:sizel)
+axz = AxisArrays.Axis{:z}(1:sizez)
+axt = AxisArrays.Axis{:time}(1:sizet)
+header = NRRD.headerinfo(N0f16, (axx, axl, axz, axt))
+header["datafile"] = joinpath(tomdir, "highK_furine_ringers.cam")
+open(joinpath(mydir,"test.nhdr"),"w") do io # write header
+    write(io,magic(format"NRRD"))
+    NRRD.write_header(io,"0004",header)
+end
+
+
+#==================== RegisterDriver distributed test ========================#
 include(joinpath(workpath,"gen2d.jl")) # generate deformed test image frames with cameraman image
 
 using Distributed, SharedArrays, StaticArrays, JLD, ImageAxes, ImageView, Test
@@ -329,6 +353,20 @@ pmap(pool, 1:2) do _
     return nothing
 end
 
-#============================================#
-# \\storage1.ris.wustl.edu\holy\Active\tom\vno_recordings\081425\highK_furine_ringers.imagine
-kim503@compute1-client-1.ris.wustl.edu:/storage1/fs1/holy/Active/tom/vno_recordings/081425/highK_furine_ringers.imagine
+#========== RIS Storage management ==========#
+# check disk usage
+df -Ph /storage1/fs1/holy/Active
+df -Ph /storage1/fs1/holy/Archive
+ 
+# ip Active to Archive
+nohup bash -c 'for dir in /storage1/fs1/holy/Active/chantal/*/; do
+    dirname=$(basename "$dir")
+    echo "Would compress: $dir → /storage1/fs1/holy/Archive/chantal/${dirname}.tar.gz"
+    tar -czf "/storage1/fs1/holy/Archive/chantal/${dirname}.tar.gz" -C /storage1/fs1/holy/Active/chantal "$dirname"
+done' > /storage1/fs1/holy/Archive/chantal/archive_log.txt 2>&1 &
+
+cat /storage1/fs1/holy/Archive/chantal/archive_log.txt
+
+# to check process list
+ps aux | grep nohup
+ps aux | grep 'tar -czf /storage1/fs1/holy'
