@@ -29,7 +29,8 @@ const s  = u"s"   # seconds
 #### Load image on the master process
 # Normally this might be `img = load("myimagefile")`, but this is a demo
 # img = load(raw"/media/tom/TOM_DATA/081425/highK_furine_ringers.imagine").data
-img = load(raw"/storage1/fs1/holy/Active/tom/vno_recordings/081425/highK_furine_ringers.imagine").data
+# img = load(raw"/storage1/fs1/holy/Active/tom/vno_recordings/081425/highK_furine_ringers.imagine").data
+img = load(raw"/mnt/storage1.Active/tom/vno_recordings/081425/highK_furine_ringers.imagine").data
 
 #### Choose the fixed image and set up the parameters (this is similar to BlockRegistration)
 fixedidx = (nimages(img)+1) ÷ 2  # ÷ can be obtained with "\div[TAB]"
@@ -56,18 +57,23 @@ end
 #### Set up the workers, the monitor, and run it via the driver
 # Create the worker algorithm structures. We assign one per worker process.
 # @allocated sfixed = SharedArray{eltype(fixed)}(size(fixed))
-# @allocated sfixed .= fixed
-algorithm = [Apertures(fixed, nodes, mxshift, λ; pid=wpids[i], correctbias=false) for i = 1:length(wpids)]
+# sfixed .= fixed
+alg_mem = @allocated algorithm = [Apertures(fixed, nodes, mxshift, λ; pid=wpids[i], correctbias=false, dev=-1) for i = 1:length(wpids)] # dev=0 causes GPU_out_of_memory on Creed
+alg_mem/1e6 # 1.74MB
+sizeof(eltype(fixed)) * length(fixed) / 1e6 # 514.7MB
 
 # Set up the "monitor" which aggregates the results from the workers
-@allocated mon = monitor(algorithm, (), Dict{Symbol,Any}(:u=>ArrayDecl(Array{SVector{3,Float64},3}, gridsize)))
+mon_mem = @allocated mon = monitor(algorithm, (), Dict{Symbol,Any}(:u=>ArrayDecl(Array{SVector{3,Float64},3}, gridsize)))
+mon_mem /1e6 # 0.116352
 
 # Load the appropriate mismatch package
 mm_package_loader(algorithm)
 
 # Define the output file and run the job
-fileout = "results2.register"
-@time driver(fileout, algorithm, img, mon) # 10 workers : 3261.116310 seconds (27.60 M allocations: 1.400 GiB, 0.02% gc time, 2 lock conflicts, 0.31% compilation time: <1% of which was recompilation)
+fileout = "results.register"
+@time driver(fileout, algorithm, img, mon)
+# RIS 10 workers : 3261.116310 seconds (27.60 M allocations: 1.400 GiB, 0.02% gc time, 2 lock conflicts, 0.31% compilation time: <1% of which was recompilation)
+# creed 10 workers (no GPU) : 2809.453340 seconds (9.01 M allocations: 621.312 MiB, 0.01% gc time, 0.18% compilation time)
 
 # Append important extra information to the file
 jldopen(fileout, "r+") do io
