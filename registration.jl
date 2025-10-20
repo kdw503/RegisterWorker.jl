@@ -36,6 +36,39 @@ open(joinpath(mydir,"test.nhdr"),"w") do io # write header
     NRRD.write_header(io,"0004",header)
 end
 
+#==================== RegisterDriver thread test ========================#
+$ julia -t 16 # 16 threads julia
+include(joinpath(workpath,"gen2d.jl")) # generate deformed test image frames with cameraman image
+
+using StaticArrays, JLD, ImageAxes, Test
+using RegisterCore, RegisterWorkerApertures, RegisterWorkerShell, RegisterDriver, Unitful
+using Base.Threads
+
+gridsize = (3, 3)
+shift_amplitude = 10
+tax = ImageAxes.timeaxis(img)
+nframes = length(tax)
+nhalf = nframes ÷ 2
+fixed = img[tax(nhalf+1)]
+mxshift = (3*shift_amplitude, 3*shift_amplitude)
+nodes = map(d->range(1, stop=size(fixed,d), length=gridsize[d]), (1,2))
+pp = PreprocessSNF(0.1, [2,2], [10,10])
+
+# fixed λ (with saving to file)
+λ = 0.001
+fn_pp = joinpath(tempdir(), "apertured_pp.jld")
+using SharedArrays
+sfixed = SharedArray{Float64}(size(fixed))
+sfixed .= pp(fixed)
+algorithms = map(tid->Apertures(sfixed, nodes, mxshift, λ, pp),1:Threads.nthreads()) # each thread has its own algorithm instance
+mm_package_loader(algorithms)
+mons = monitor_thread(algorithms, (),
+               Dict(:u => Array{SVector{2,Float64}}(undef, gridsize),
+                    :warped => Array{Float64}(undef, size(fixed)),
+                    :warped0 => Array{Float64}(undef, size(fixed)),
+                    :mismatch => 0.0))
+@time RegisterDriver.driver(fn_pp, algorithms, img, mons) # 493.674 ms (163503 allocations: 186.36 MiB)S
+
 
 #==================== RegisterDriver distributed test ========================#
 include(joinpath(workpath,"gen2d.jl")) # generate deformed test image frames with cameraman image
