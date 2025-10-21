@@ -56,7 +56,13 @@ numthreads = Threads.nthreads()
 # Create the worker algorithm structures. We assign one per worker process.
 # @allocated sfixed = SharedArray{eltype(fixed)}(size(fixed))
 # sfixed .= fixed
-alg_mem = @allocated algorithm = [Apertures(fixed, nodes, mxshift, λ; pid=i, correctbias=false, dev=-1) for i = 1:numthreads] # dev=0 causes GPU_out_of_memory on Creed
+n = nthreads()
+threadids = Vector{Int}(undef, n)
+@threads for i in 1:n
+    threadids[i] = threadid()
+end
+sort!(threadids)
+alg_mem = @allocated algorithm = [Apertures(fixed, nodes, mxshift, λ; pid=i, correctbias=false, dev=-1) for i = threadids] # dev=0 causes GPU_out_of_memory on Creed
 alg_mem/1e6 # 1.74MB
 sizeof(eltype(fixed)) * length(fixed) / 1e6 # 514.7MB
 
