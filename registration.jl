@@ -38,7 +38,9 @@ end
 
 #==================== RegisterDriver thread test ========================#
 $ julia -t 16 # 16 threads julia
-include(joinpath(workpath,"gen2d.jl")) # generate deformed test image frames with cameraman image
+using BlockRegistration                                # just needed for this demo
+brdir = dirname(dirname(pathof(BlockRegistration)))    # directory of BlockRegistration
+include(joinpath(brdir, "test", "gen2d.jl"));          # defines `img`
 
 using StaticArrays, JLD, ImageAxes, Test
 using RegisterCore, RegisterWorkerApertures, RegisterWorkerShell, RegisterDriver, Unitful
