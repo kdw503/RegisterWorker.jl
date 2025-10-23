@@ -57,8 +57,7 @@ end
 # Create the worker algorithm structures. We assign one per worker process.
 # @allocated sfixed = SharedArray{eltype(fixed)}(size(fixed))
 # sfixed .= fixed
-tids = threadids()
-algorithm = [Apertures(fixed, nodes, mxshift, λ; tid=i, correctbias=false, dev=-1) for i = tids] # dev=0 causes GPU_out_of_memory on Creed
+algorithm = [Apertures(fixed, nodes, mxshift, λ; tid=i, correctbias=false, dev=-1) for i = threadids()] # dev=0 causes GPU_out_of_memory on Creed
 
 # Set up the "monitor" which aggregates the results from the workers
 mon = monitor(algorithm, (), Dict{Symbol,Any}(:u=>ArrayDecl(Array{SVector{3,Float64},3}, gridsize)))

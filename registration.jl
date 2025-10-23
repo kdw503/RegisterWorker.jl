@@ -59,8 +59,7 @@ pp = PreprocessSNF(0.1, [2,2], [10,10])
 # fixed λ (with saving to file)
 λ = 0.001
 fn_pp = joinpath(tempdir(), "apertured_pp.jld")
-tids = threadids()
-algorithms = map(tid->Apertures(pp(fixed), nodes, mxshift, λ, pp, workertid=tid),tids) # each thread has its own algorithm instance
+algorithms = map(tid->Apertures(pp(fixed), nodes, mxshift, λ, pp, tid=tid),threadids()) # each thread has its own algorithm instance
 mm_package_loader(algorithms)
 mons = monitor(algorithms, (),
                Dict(:u => Array{SVector{2,Float64}}(undef, gridsize),
