@@ -401,6 +401,8 @@ done' > /storage1/fs1/holy/Archive/chantal/archive_log.txt 2>&1 &
 
 cat /storage1/fs1/holy/Archive/chantal/archive_log.txt
 
+tar -tzf yourfile.tar.gz # check compression only with file name without decompression
+
 # to check process list
 ps aux | grep nohup
 ps aux | grep 'tar -czf /storage1/fs1/holy'
