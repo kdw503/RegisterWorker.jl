@@ -57,17 +57,16 @@ pp = PreprocessSNF(0.1, [2,2], [10,10])
 # fixed λ (with saving to file)
 λ = 0.001
 fn_pp = joinpath(tempdir(), "apertured_pp.jld")
-using SharedArrays
-sfixed = SharedArray{Float64}(size(fixed))
-sfixed .= pp(fixed)
-algorithms = map(tid->Apertures(sfixed, nodes, mxshift, λ, pp),1:Threads.nthreads()) # each thread has its own algorithm instance
+tids = threadids()
+algorithms = map(tid->Apertures(pp(fixed), nodes, mxshift, λ, pp, workertid=tid),tids) # each thread has its own algorithm instance
 mm_package_loader(algorithms)
-mons = monitor_thread(algorithms, (),
+mons = monitor(algorithms, (),
                Dict(:u => Array{SVector{2,Float64}}(undef, gridsize),
                     :warped => Array{Float64}(undef, size(fixed)),
                     :warped0 => Array{Float64}(undef, size(fixed)),
                     :mismatch => 0.0))
-@time RegisterDriver.driver(fn_pp, algorithms, img, mons) # 493.674 ms (163503 allocations: 186.36 MiB)S
+@time RegisterDriver.driver(fn_pp, algorithms, img, mons) # 493.674 ms (163503 allocations: 186.36 MiB)
+           # 0.825767 seconds (180.50 k allocations: 213.857 MiB, 5.37% gc time, 6 lock conflicts)
 
 
 #==================== RegisterDriver distributed test ========================#

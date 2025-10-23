@@ -27,6 +27,7 @@ const s  = u"s"   # seconds
 # Normally this might be `img = load("myimagefile")`, but this is a demo
 # img = load(raw"/media/tom/TOM_DATA/081425/highK_furine_ringers.imagine").data
 img = load(raw"/storage1/fs1/holy/Active/tom/vno_recordings/081425/highK_furine_ringers.imagine").data
+# sshfs kim503@compute1-client-1.ris.wustl.edu:/storage1/fs1/holy/Active /mnt/storage1.Active -o allow_other
 # img = load(raw"/mnt/storage1.Active/tom/vno_recordings/081425/highK_furine_ringers.imagine").data
 
 #### Choose the fixed image and set up the parameters (this is similar to BlockRegistration)
@@ -56,13 +57,8 @@ numthreads = Threads.nthreads()
 # Create the worker algorithm structures. We assign one per worker process.
 # @allocated sfixed = SharedArray{eltype(fixed)}(size(fixed))
 # sfixed .= fixed
-n = nthreads()
-threadids = Vector{Int}(undef, n)
-@threads for i in 1:n
-    threadids[i] = threadid()
-end
-sort!(threadids)
-alg_mem = @allocated algorithm = [Apertures(fixed, nodes, mxshift, λ; pid=i, correctbias=false, dev=-1) for i = threadids] # dev=0 causes GPU_out_of_memory on Creed
+tids = threadids()
+alg_mem = @allocated algorithm = [Apertures(fixed, nodes, mxshift, λ; tid=i, correctbias=false, dev=-1) for i = tids] # dev=0 causes GPU_out_of_memory on Creed
 alg_mem/1e6 # 1.74MB
 sizeof(eltype(fixed)) * length(fixed) / 1e6 # 514.7MB
 
